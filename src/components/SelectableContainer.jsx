@@ -461,7 +461,7 @@ const SelectableContainer = (props) => {
       props;
     const classNames = evt.target.classList || [];
     const classNamesArr = Array.from(classNames);
-    const isMouseUpOnClickElement = clickClassNameS.any((c) =>
+    const isMouseUpOnClickElement = clickClassNameS.some((c) =>
       classNamesArr.includes(c)
     );
 
