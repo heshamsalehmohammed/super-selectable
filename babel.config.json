@@ -3,7 +3,8 @@
     [
       "minify",
       {
-        "keepFnName": true
+        "keepFnName": true,
+        "builtIns": false
       }
     ],
     [
