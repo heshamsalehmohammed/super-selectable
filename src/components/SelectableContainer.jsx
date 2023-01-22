@@ -158,7 +158,7 @@ const SelectableContainer = (props) => {
 
       removeTempEventListeners();
       selectedItemsRef.current.clear();
-      selectingItemsRef.current.clear()
+      selectingItemsRef.current.clear();
     };
   }, []);
 
@@ -253,7 +253,10 @@ const SelectableContainer = (props) => {
   };
 
   const clearSelection = () => {
-    selectedItemsRef.current.clear();
+    for (const item of selectedItemsRef.current.values()) {
+      item.isSelected = false;
+      selectedItemsRef.current.delete(item);
+    }
   };
 
   const handleMouseDown = (e) => {
@@ -396,8 +399,6 @@ const SelectableContainer = (props) => {
     ) {
       handleClick(evt, pageY, pageX);
     } else {
-
-
       if (evt.which === 1 && mouseDownDataRef.current.target === evt.target) {
         preventEvent(evt.target, 'click');
       }
@@ -418,11 +419,14 @@ const SelectableContainer = (props) => {
       selectItems(selectboxBoundsRef.current);
 
       for (const item of selectingItemsRef.current.values()) {
-        item.isSelected= true;
-        item.isSelecting= false;
+        item.isSelected = true;
+        item.isSelecting = false;
       }
-      selectedItemsRef.current = new Set([...selectedItemsRef.current, ...selectingItemsRef.current])
-      selectingItemsRef.current.clear()
+      selectedItemsRef.current = new Set([
+        ...selectedItemsRef.current,
+        ...selectingItemsRef.current,
+      ]);
+      selectingItemsRef.current.clear();
 
       selectboxBoundsRef.current = {
         top: 0,
@@ -453,11 +457,13 @@ const SelectableContainer = (props) => {
       return;
     }
 
-    const {clickClassName, allowClickWithoutSelected, onSelectionFinish} =
+    const {clickClassNameS, allowClickWithoutSelected, onSelectionFinish} =
       props;
     const classNames = evt.target.classList || [];
-    const isMouseUpOnClickElement =
-      Array.from(classNames).includes(clickClassName);
+    const classNamesArr = Array.from(classNames);
+    const isMouseUpOnClickElement = clickClassNameS.any((c) =>
+      classNamesArr.includes(c)
+    );
 
     if (
       allowClickWithoutSelected ||
@@ -528,54 +534,60 @@ const SelectableContainer = (props) => {
       delta
     );
 
-    const { isSelecting, isSelected } = item
+    const {isSelecting, isSelected} = item;
 
     if (isFromClick && isCollided) {
       if (isSelected) {
-        selectedItemsRef.current.delete(item)
+        selectedItemsRef.current.delete(item);
       } else {
-        selectedItemsRef.current.add(item)
+        selectedItemsRef.current.add(item);
       }
 
-      item.isSelected= !isSelected;
-      clickedItemRef.current = item
+      item.isSelected = !isSelected;
+      clickedItemRef.current = item;
 
-      return item
+      return item;
     }
 
     if (!isFromClick && isCollided) {
-      if (isSelected && enableDeselect && (!selectionStartedRef.current || mixedDeselect)) {
-        item.isSelected= false;
-        item.deselected = true
+      if (
+        isSelected &&
+        enableDeselect &&
+        (!selectionStartedRef.current || mixedDeselect)
+      ) {
+        item.isSelected = false;
+        item.deselected = true;
 
-       deselectionStartedRef.current = true
+        deselectionStartedRef.current = true;
 
-        return selectedItemsRef.current.delete(item)
+        return selectedItemsRef.current.delete(item);
       }
 
-      const canSelect = mixedDeselect ? !item.deselected : !deselectionStartedRef.current
+      const canSelect = mixedDeselect
+        ? !item.deselected
+        : !deselectionStartedRef.current;
 
       if (!isSelecting && !isSelected && canSelect) {
-        item.isSelecting= true
+        item.isSelecting = true;
 
-        selectionStartedRef.current = true
-        selectingItemsRef.current.add(item)
+        selectionStartedRef.current = true;
+        selectingItemsRef.current.add(item);
 
-        return { updateSelecting: true }
+        return {updateSelecting: true};
       }
     }
 
     if (!isFromClick && !isCollided && isSelecting) {
       if (selectingItemsRef.current.has(item)) {
-        item.setState({ isSelecting: false })
+        item.setState({isSelecting: false});
 
-        selectingItemsRef.current.delete(item)
+        selectingItemsRef.current.delete(item);
 
-        return { updateSelecting: true }
+        return {updateSelecting: true};
       }
     }
 
-    return null
+    return null;
   };
 
   const defaultContainerStyle = {

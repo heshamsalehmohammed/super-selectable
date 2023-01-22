@@ -1,6 +1,6 @@
 {
   "name": "super-selectable",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "",
   "module": "dist/index.js",
   "main": "dist/index.js",

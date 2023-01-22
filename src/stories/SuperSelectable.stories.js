@@ -33,7 +33,7 @@ stories.add('App', () => {
         }}
       />
       <div className="container">
-        <SelectableContainer onSelectionFinish={handleSelectionFinish} enableDeselect>
+        <SelectableContainer onSelectionFinish={handleSelectionFinish} enableDeselect resetOnStart>
           {Array.from(Array(3000).keys()).map((ele, index) => (
             <SelectableItem
               key={index}
