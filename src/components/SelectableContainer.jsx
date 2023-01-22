@@ -366,9 +366,6 @@ const SelectableContainer = (props) => {
       offsetWidth: selectboxStateRef.current.width || 1,
       offsetHeight: selectboxStateRef.current.height || 1,
     };
-
-    console.log('selectboxStateRef', selectboxStateRef.current);
-    console.log('selectboxBoundsRef', selectboxBoundsRef.current);
     selectBoxRef.current.style.left = selectboxStateRef.current.x + 'px';
     selectBoxRef.current.style.top = selectboxStateRef.current.y + 'px';
     selectBoxRef.current.style.width = selectboxStateRef.current.width + 'px';

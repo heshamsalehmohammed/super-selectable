@@ -1,6 +1,6 @@
 {
   "name": "super-selectable",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "module": "dist/index.js",
   "main": "dist/index.js",
@@ -15,6 +15,10 @@
   },
   "author": "Hesham Saleh",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heshamsalehmohammed/react-power-selectable.git"
+  },
   "devDependencies": {
     "@babel/cli": "^7.14.5",
     "@babel/core": "^7.14.6",
