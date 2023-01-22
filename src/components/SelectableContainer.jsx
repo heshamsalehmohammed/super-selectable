@@ -11,6 +11,7 @@ import SelectBox from './SelectBox';
 import {mergeRefs} from 'react-merge-refs';
 import {
   castTouchToMouseEvent,
+  detectMouseButton,
   doObjectsCollide,
   getBoundsForNode,
   getDocumentScroll,
@@ -18,22 +19,31 @@ import {
 } from './utils';
 
 const SelectableContainer = (props) => {
-  const {children, onSelectionFinish} = props;
+  const {
+    children,
+    onSelectionFinish,
+    scrollSpeed = 0.25,
+    minimumSpeedFactor = 60,
+    delta = 1,
+    tolerance = 0,
+    globalMouse = false,
+    allowAltClick = false,
+    allowCtrlClick = false,
+    allowMetaClick = false,
+    allowShiftClick = false,
+    selectOnClick = true,
+    resetOnStart = false,
+    deselectOnEsc = true,
+    allowClickWithoutSelected = true,
+  } = props;
 
   const selectableRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const selectBoxRef = useRef(null);
-  const mouseRef = useRef({
-    current: {x: 0, y: 0},
-    start: {x: 0, y: 0},
-    isDragging: false,
-  });
-  const dataRef = useRef({
-    left: 0,
-    top: 0,
-    scaleX: 0,
-    scaleY: 0,
-  });
+  const clickedItemRef = useRef(null);
+
+  const selectedItemsRef = useRef(new Set());
+  const selectingItemsRef = useRef(new Set());
 
   const mouseDownDataRef = useRef({
     selectboxY: 0,
@@ -73,6 +83,18 @@ const SelectableContainer = (props) => {
   const scrollBoundsRef = useRef(null);
 
   const segmentsRef = useRef([]);
+
+  const mouseDownStartedRef = useRef(false);
+
+  const mouseMoveStartedRef = useRef(false);
+
+  const mouseMovedRef = useRef(false);
+
+  const mouseUpStartedRef = useRef(false);
+
+  const selectionStartedRef = useRef(false);
+
+  const deselectionStartedRef = useRef(false);
 
   const saveContainerScroll = () => {
     const {scrollTop, scrollLeft} = scrollContainerRef.current;
@@ -114,6 +136,11 @@ const SelectableContainer = (props) => {
     selectableRef.current.addEventListener('mousedown', handleMouseDown);
     selectableRef.current.addEventListener('touchstart', handleMouseDown);
 
+    if (deselectOnEsc) {
+      document.addEventListener('keydown', keyListener);
+      document.addEventListener('keyup', keyListener);
+    }
+
     return () => {
       scrollContainerRef.current.removeEventListener(
         'scroll',
@@ -124,7 +151,14 @@ const SelectableContainer = (props) => {
       selectableRef.current.removeEventListener('mousedown', handleMouseDown);
       selectableRef.current.removeEventListener('touchstart', handleMouseDown);
 
+      if (deselectOnEsc) {
+        document.removeEventListener('keydown', keyListener);
+        document.removeEventListener('keyup', keyListener);
+      }
+
       removeTempEventListeners();
+      selectedItemsRef.current.clear();
+      selectingItemsRef.current.clear()
     };
   }, []);
 
@@ -163,8 +197,6 @@ const SelectableContainer = (props) => {
   };
 
   const getScrollStep = (offset) => {
-    const {minimumSpeedFactor, scrollSpeed} = props;
-
     return Math.max(offset, minimumSpeedFactor ?? 0) * scrollSpeed ?? 1;
   };
 
@@ -220,22 +252,31 @@ const SelectableContainer = (props) => {
     },
   };
 
-  useEffect(() => {
-    if (selectBoxRef.current) {
-    }
-  }, []);
+  const clearSelection = () => {
+    selectedItemsRef.current.clear();
+  };
 
   const handleMouseDown = (e) => {
-    mouseRef.current.start.x = e.clientX;
-    mouseRef.current.start.y = e.clientY;
-    mouseRef.current.isDragging = true;
+    const isNotLeftButtonClick =
+      !e.type.includes('touch') &&
+      !detectMouseButton(e, 1, {
+        allowAltClick: allowAltClick,
+        allowCtrlClick: allowCtrlClick,
+        allowMetaClick: allowMetaClick,
+        allowShiftClick: allowShiftClick,
+      });
+    if (mouseDownStartedRef.current || isNotLeftButtonClick) {
+      return;
+    }
 
+    if (resetOnStart) {
+      clearSelection();
+    }
+    mouseDownStartedRef.current = true;
+    mouseUpStartedRef.current = false;
     const evt = castTouchToMouseEvent(e);
 
-    if (
-      !props.globalMouse &&
-      !isNodeInRoot(evt.target, selectableRef.current)
-    ) {
+    if (!globalMouse && !isNodeInRoot(evt.target, selectableRef.current)) {
       const [bounds] = getBoundsForNode(
         selectableRef.current,
         documentScrollRef.current
@@ -285,63 +326,81 @@ const SelectableContainer = (props) => {
     document.addEventListener('touchend', handleMouseUp);
   };
   const handleMouseMove = (e) => {
-    mouseRef.current.current.x = e.clientX;
-    mouseRef.current.current.y = e.clientY;
-
     const evt = castTouchToMouseEvent(e);
     updateContainerScroll(evt);
 
-    if (mouseRef.current.isDragging) {
-      const {clientX, clientY} = evt;
-
-      const pointY =
-        clientY - scrollBoundsRef.current?.top ??
-        0 + containerScrollRef.current.scrollTop;
-      const selectboxY = Math.min(pointY, mouseDownDataRef.current.selectboxY);
-
-      const pointX =
-        clientX - scrollBoundsRef.current?.left ??
-        0 + containerScrollRef.current.scrollLeft;
-      const selectboxX = Math.min(pointX, mouseDownDataRef.current.selectboxX);
-
-      selectboxStateRef.current = {
-        x: selectboxX,
-        y: selectboxY,
-        width: Math.abs(pointX - mouseDownDataRef.current.selectboxX),
-        height: Math.abs(pointY - mouseDownDataRef.current.selectboxY),
-      };
-
-      selectboxBoundsRef.current = {
-        top:
-          selectboxStateRef.current.y + scrollBoundsRef.current?.top ??0 + documentScrollRef.current?.scrollTop??0,
-        left:
-          selectboxStateRef.current.x + scrollBoundsRef.current?.left ??0 + documentScrollRef.current?.scrollLeft??0,
-        width: selectboxStateRef.current.width,
-        height: selectboxStateRef.current.height,
-        offsetWidth: selectboxStateRef.current.width || 1,
-        offsetHeight: selectboxStateRef.current.height || 1,
-      };
-
-      console.log('selectboxStateRef', selectboxStateRef.current);
-      console.log('selectboxBoundsRef', selectboxBoundsRef.current);
-      selectBoxRef.current.style.left = selectboxStateRef.current.x + 'px';
-      selectBoxRef.current.style.top = selectboxStateRef.current.y + 'px';
-      selectBoxRef.current.style.width = selectboxStateRef.current.width + 'px';
-      selectBoxRef.current.style.height =
-        selectboxStateRef.current.height + 'px';
+    if (mouseMoveStartedRef.current) {
+      return;
     }
+    mouseMoveStartedRef.current = true;
+    mouseMovedRef.current = true;
+
+    const {clientX, clientY} = evt;
+
+    const pointY =
+      clientY - scrollBoundsRef.current?.top ??
+      0 + containerScrollRef.current.scrollTop;
+    const selectboxY = Math.min(pointY, mouseDownDataRef.current.selectboxY);
+
+    const pointX =
+      clientX - scrollBoundsRef.current?.left ??
+      0 + containerScrollRef.current.scrollLeft;
+    const selectboxX = Math.min(pointX, mouseDownDataRef.current.selectboxX);
+
+    selectboxStateRef.current = {
+      x: selectboxX,
+      y: selectboxY,
+      width: Math.abs(pointX - mouseDownDataRef.current.selectboxX),
+      height: Math.abs(pointY - mouseDownDataRef.current.selectboxY),
+    };
+
+    selectboxBoundsRef.current = {
+      top:
+        selectboxStateRef.current.y + scrollBoundsRef.current?.top ??
+        0 + documentScrollRef.current.scrollTop,
+      left:
+        selectboxStateRef.current.x + scrollBoundsRef.current?.left ??
+        0 + documentScrollRef.current.scrollLeft,
+      width: selectboxStateRef.current.width,
+      height: selectboxStateRef.current.height,
+      offsetWidth: selectboxStateRef.current.width || 1,
+      offsetHeight: selectboxStateRef.current.height || 1,
+    };
+
+    console.log('selectboxStateRef', selectboxStateRef.current);
+    console.log('selectboxBoundsRef', selectboxBoundsRef.current);
+    selectBoxRef.current.style.left = selectboxStateRef.current.x + 'px';
+    selectBoxRef.current.style.top = selectboxStateRef.current.y + 'px';
+    selectBoxRef.current.style.width = selectboxStateRef.current.width + 'px';
+    selectBoxRef.current.style.height = selectboxStateRef.current.height + 'px';
+
+    mouseMoveStartedRef.current = false;
   };
   const handleMouseUp = (e) => {
-    mouseRef.current.isDragging = false;
+    if (mouseUpStartedRef.current) {
+      return;
+    }
+
+    mouseUpStartedRef.current = true;
+    mouseDownStartedRef.current = false;
 
     removeTempEventListeners();
+
+    if (!mouseDownDataRef.current) {
+      return;
+    }
 
     const evt = castTouchToMouseEvent(e);
     const {pageX, pageY} = evt;
 
-    if (false && isNodeInRoot(evt.target, selectableRef.current)) {
-      //handleClick(evt, pageY, pageX);
+    if (
+      !mouseMovedRef.current &&
+      isNodeInRoot(evt.target, selectableRef.current)
+    ) {
+      handleClick(evt, pageY, pageX);
     } else {
+
+
       if (evt.which === 1 && mouseDownDataRef.current.target === evt.target) {
         preventEvent(evt.target, 'click');
       }
@@ -359,7 +418,14 @@ const SelectableContainer = (props) => {
       selectBoxRef.current.style.height =
         selectboxStateRef.current.height + 'px';
 
-      const selectedItems = getSelectedItems(selectboxBoundsRef.current);
+      selectItems(selectboxBoundsRef.current);
+
+      for (const item of selectingItemsRef.current.values()) {
+        item.isSelected= true;
+        item.isSelecting= false;
+      }
+      selectedItemsRef.current = new Set([...selectedItemsRef.current, ...selectingItemsRef.current])
+      selectingItemsRef.current.clear()
 
       selectboxBoundsRef.current = {
         top: 0,
@@ -370,7 +436,58 @@ const SelectableContainer = (props) => {
         offsetHeight: 0,
       };
 
-      onSelectionFinish(selectedItems);
+      onSelectionFinish(selectedItemsRef.current);
+    }
+
+    deselectionStartedRef.current = false;
+    selectionStartedRef.current = false;
+    mouseMovedRef.current = false;
+  };
+
+  const keyListener = (evt) => {
+    if (evt.keyCode === 27) {
+      // escape
+      clearSelection();
+    }
+  };
+
+  const handleClick = (evt, top, left) => {
+    if (!selectOnClick) {
+      return;
+    }
+
+    const {clickClassName, allowClickWithoutSelected, onSelectionFinish} =
+      props;
+    const classNames = evt.target.classList || [];
+    const isMouseUpOnClickElement =
+      Array.from(classNames).includes(clickClassName);
+
+    if (
+      allowClickWithoutSelected ||
+      selectedItemsRef.current.size ||
+      isMouseUpOnClickElement ||
+      evt.ctrlKey
+    ) {
+      selectItems(
+        {
+          top,
+          left,
+          width: 0,
+          height: 0,
+          offsetWidth: 0,
+          offsetHeight: 0,
+        },
+        {isFromClick: true}
+      );
+
+      onSelectionFinish([...selectedItemsRef.current], clickedItemRef.current);
+
+      if (evt.which === 1) {
+        preventEvent(evt.target, 'click');
+      }
+      if (evt.which === 2 || evt.which === 3) {
+        preventEvent(evt.target, 'contextmenu');
+      }
     }
   };
 
@@ -383,35 +500,96 @@ const SelectableContainer = (props) => {
     target.addEventListener(type, preventHandler, true);
   };
 
-  const getSelectedItems = (selectboxBounds) => {
-    const {tolerance, enableDeselect, mixedDeselect} = props;
-    return segmentsRef.current.filter((item) => {
-      return checkItemSelection({
+  const selectItems = (selectboxBounds, options) => {
+    const {enableDeselect, mixedDeselect} = props;
+    segmentsRef.current.forEach((item) => {
+      processItem({
         item: item.current,
         selectboxBounds,
-        tolerance: tolerance ?? 0,
+        tolerance: tolerance,
         mixedDeselect: mixedDeselect ?? false,
         enableDeselect: enableDeselect ?? false,
+        isFromClick: options && options.isFromClick,
       });
     });
   };
 
-  const checkItemSelection = (options) => {
-    const {item, tolerance, selectboxBounds, enableDeselect, mixedDeselect} =
-      options;
+  const processItem = (options) => {
+    const {
+      item,
+      tolerance,
+      selectboxBounds,
+      enableDeselect,
+      mixedDeselect,
+      isFromClick,
+    } = options;
 
-    const {delta} = props;
     const isCollided = doObjectsCollide(
       selectboxBounds,
       item.hBounds,
       tolerance,
       delta
     );
-    return isCollided;
+
+    const { isSelecting, isSelected } = item
+
+    if (isFromClick && isCollided) {
+      if (isSelected) {
+        selectedItemsRef.current.delete(item)
+      } else {
+        selectedItemsRef.current.add(item)
+      }
+
+      item.isSelected= !isSelected;
+      clickedItemRef.current = item
+
+      return item
+    }
+
+    if (!isFromClick && isCollided) {
+      if (isSelected && enableDeselect && (!selectionStartedRef.current || mixedDeselect)) {
+        item.isSelected= false;
+        item.deselected = true
+
+       deselectionStartedRef.current = true
+
+        return selectedItemsRef.current.delete(item)
+      }
+
+      const canSelect = mixedDeselect ? !item.deselected : !deselectionStartedRef.current
+
+      if (!isSelecting && !isSelected && canSelect) {
+        item.isSelecting= true
+
+        selectionStartedRef.current = true
+        selectingItemsRef.current.add(item)
+
+        return { updateSelecting: true }
+      }
+    }
+
+    if (!isFromClick && !isCollided && isSelecting) {
+      if (selectingItemsRef.current.has(item)) {
+        item.setState({ isSelecting: false })
+
+        selectingItemsRef.current.delete(item)
+
+        return { updateSelecting: true }
+      }
+    }
+
+    return null
+  };
+
+  const defaultContainerStyle = {
+    position: 'relative',
   };
 
   return (
-    <div ref={selectableRef} className="selectable-container">
+    <div
+      ref={selectableRef}
+      className="selectable-container"
+      style={{...defaultContainerStyle, ...props.style}}>
       <context.Provider value={api}>{children}</context.Provider>
       <SelectBox ref={selectBoxRef} />
     </div>

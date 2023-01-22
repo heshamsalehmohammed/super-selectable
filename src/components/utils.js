@@ -122,3 +122,24 @@ export function doObjectsCollide(a, b, tolerance = 0, delta = 1) {
     }
   }
 }
+
+export function detectMouseButton(evt, buttonNumber = 1, options = {}) {
+  if (
+    (evt.metaKey && !options.allowMetaClick) ||
+    (evt.ctrlKey && !options.allowCtrlClick) ||
+    (evt.altKey && !options.allowAltClick) ||
+    (evt.shiftKey && !options.allowShiftClick)
+  ) {
+    return false;
+  }
+
+  if ('buttons' in evt) {
+    return evt.buttons === buttonNumber;
+  }
+
+  if ('which' in evt) {
+    return evt.which === buttonNumber;
+  }
+
+  return evt.button === buttonNumber - 1;
+}

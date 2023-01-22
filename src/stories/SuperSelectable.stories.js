@@ -9,29 +9,41 @@ import './selection.css';
 const stories = storiesOf('App Test', module);
 
 const Item = React.forwardRef((props, forwardedRef) => {
-  const {index} = props;
-  return <div className="item" key={index + 1} ref={forwardedRef}></div>;
+  const {index, customData} = props;
+  return (
+    <div className="item" key={index + 1} ref={forwardedRef}>
+      {customData.ele}
+    </div>
+  );
 });
 
 stories.add('App', () => {
   const handleSelectionFinish = (selectedItems) => {
-    if (selectedItems.length > 0) {
-      
-    }
+    console.log(
+      'selected Items ',
+      Array.from(selectedItems.values()).map((v) => v.customData.ele)
+    );
   };
 
   return (
-    <div className="container">
-      <SelectableContainer onSelectionFinish={handleSelectionFinish}>
-        {new Array(150).fill(0).map((ele, index) => (
-          <SelectableItem
-            key={index}
-            index={index}
-            customData={{Hesham: true}}
-            ItemComponent={Item}
-          />
-        ))}
-      </SelectableContainer>
-    </div>
+    <>
+      <div
+        style={{
+          height: '10%',
+        }}
+      />
+      <div className="container">
+        <SelectableContainer onSelectionFinish={handleSelectionFinish} enableDeselect>
+          {Array.from(Array(3000).keys()).map((ele, index) => (
+            <SelectableItem
+              key={index}
+              index={index}
+              customData={{ele}}
+              ItemComponent={Item}
+            />
+          ))}
+        </SelectableContainer>
+      </div>
+    </>
   );
 });
