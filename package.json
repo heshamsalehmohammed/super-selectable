@@ -1,6 +1,6 @@
 {
   "name": "super-selectable",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "",
   "module": "dist/index.js",
   "main": "dist/index.js",
@@ -36,9 +36,10 @@
     "babel-loader": "^8.2.2",
     "babel-preset-minify": "^0.5.1",
     "react": "^17.0.2",
-    "react-dom": "^17.0.2"
+    "react-dom": "^17.0.2",
+    "react-merge-refs": "^2.0.1"
   },
   "dependencies": {
-    "react-merge-refs": "^2.0.1"
+    
   }
 }
